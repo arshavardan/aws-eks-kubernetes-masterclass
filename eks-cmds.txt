@@ -1,0 +1,111 @@
+eksctl create cluster --name=eksdemo1 --region=us-east-1 --zones=us-east-1a,us-east-1b --without-nodegroup --version=1.27
+					  
+eksctl utils associate-iam-oidc-provider --region us-east-1 --cluster eksdemo1 --approve					  
+
+## public worker nodes	
+eksctl create nodegroup --cluster=eksdemo1 --region=us-east-1 --name=eksdemo1-ng-public1 --node-type=t2.medium --nodes=2 --nodes-min=2 --nodes-max=4 --node-volume-size=20 --ssh-access --ssh-public-key=simptemp --managed --asg-access --external-dns-access --full-ecr-access --appmesh-access --alb-ingress-access 	
+
+
+## export kube config
+
+aws eks update-kubeconfig --region us-east-1 --name eksdemo1
+
+
+## private worker nodes	
+eksctl create nodegroup --cluster=eksdemo1 --region=us-east-1 --name=eksdemo1-ng-private1 --node-type=t2.medium --nodes=2 --nodes-min=2 --nodes-max=4 --node-volume-size=20 --ssh-access --ssh-public-key=simptemp --managed --asg-access --external-dns-access --full-ecr-access --appmesh-access --alb-ingress-access --node-private-networking
+
+## OIDC
+eksctl utils associate-iam-oidc-provider \
+    --region us-east-1 \
+    --cluster eksdemo1 \
+    --approve
+	
+## Applying the policy and copy the ARN
+aws iam create-policy \
+    --policy-name AWSLoadBalancerControllerIAMPolicy \
+    --policy-document file://iam_policy_latest.json
+
+scp -i "thinkpad.pem" -r C:\\Users\\Qpiai\\Desktop\\terraform\\terraform-repo\\terraform-with-eks ubuntu@ec2-3-82-220-23.compute-1.amazonaws.com:/home/ubuntu
+
+## private node-groups
+eksctl create nodegroup --cluster=eksdemo1 \
+                        --region=us-east-1 \
+                        --name=eksdemo1-ng-private1 \
+                        --node-type=t3.medium \
+                        --nodes-min=2 \
+                        --nodes-max=4 \
+                        --node-volume-size=20 \
+                        --ssh-access \
+                        --ssh-public-key=work-key \
+                        --managed \
+                        --asg-access \
+                        --external-dns-access \
+                        --full-ecr-access \
+                        --appmesh-access \
+                        --alb-ingress-access \
+                        --node-private-networking                       
+
+
+kubectl run -it --rm --image=mysql --restart=Never mysql-client -- mysql -h usermgmtdb.cgsgcglg2ohl.us-east-1.rds.amazonaws.com -u dbadmin -pdbpassword11						
+						
+arn:aws:iam::872660113347:policy/AWSLoadBalancerControllerIAMPolicy
+
+
+eksctl create iamserviceaccount \
+  --cluster=eksdemo1 \
+  --namespace=kube-system \
+  --name=aws-load-balancer-controller \
+  --attach-policy-arn=arn:aws:iam::872660113347:policy/AWSLoadBalancerControllerIAMPolicy \
+  --override-existing-serviceaccounts \
+  --approve						
+						
+						
+helm install aws-load-balancer-controller eks/aws-load-balancer-controller \
+  -n kube-system \
+  --set clusterName=eksdemo1 \
+  --set serviceAccount.create=false \
+  --set serviceAccount.name=aws-load-balancer-controller \
+  --set region=us-east-1 \
+  --set vpcId=vpc-0ce377c521e8542d7 \
+  --set image.repository=602401143452.dkr.ecr.us-east-1.amazonaws.com/amazon/aws-load-balancer-controller				
+  
+  
+  ## To reduce the number of nodes with eksctl scale command
+ eksctl scale nodegroup --cluster=eksdemo1 --region=us-east-1 --name=eksdemo1-ng-private1 --nodes-min=1
+ eksctl scale nodegroup --cluster=eksdemo1 --region=us-east-1 --name=eksdemo1-ng-private1 --nodes=1
+
+##SMTP server
+AWS_MAIL_SERVER_HOST=email-smtp.us-east-1.amazonaws.com
+AWS_MAIL_SERVER_USERNAME=AKIAZAVAVVVYQTIP36ZW
+AWS_MAIL_SERVER_PASSWORD=BMurWp8N5qfQkN04gD3thren82+3Z2AJyYXoe3xMrJj5
+AWS_MAIL_SERVER_FROM_ADDRESS= arshavardan.p@gmail.com
+
+
+## To increase the load of a pod
+kubectl run -it --rm --restart=Never apache-bench --image=httpd -- ab -n 500000 -c 1000 http://sample-nginx-service.default.svc.cluster.local/
+
+kubectl run -it --rm --restart=Never apache-bench --image=httpd -- ab -n 500000 -c 1000 10.100.169.49
+
+## scaling up
+$ eksctl scale nodegroup --cluster=eksdemo1 --name=eksdemo1-ng-private1 --nodes-min=2 --nodes-max=4
+
+## cloudwatch
+curl https://raw.githubusercontent.com/aws-samples/amazon-cloudwatch-container-insights/latest/k8s-deployment-manifest-templates/deployment-mode/daemonset/container-insights-monitoring/quickstart/cwagent-fluentd-quickstart.yaml | sed "s/{{cluster_name}}/eksdemo1/;s/{{region_name}}/us-east-1/" | kubectl apply -f -
+
+##fluentbit ====================== Source= https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Container-Insights-setup-logs-FluentBit.html
+ClusterName=eksdemo1
+RegionName=us-east-1
+FluentBitHttpPort='2020'
+FluentBitReadFromHead='Off'
+[[ ${FluentBitReadFromHead} = 'On' ]] && FluentBitReadFromTail='Off'|| FluentBitReadFromTail='On'
+[[ -z ${FluentBitHttpPort} ]] && FluentBitHttpServer='Off' || FluentBitHttpServer='On'
+kubectl create configmap fluent-bit-cluster-info \
+--from-literal=cluster.name=${ClusterName} \
+--from-literal=http.server=${FluentBitHttpServer} \
+--from-literal=http.port=${FluentBitHttpPort} \
+--from-literal=read.head=${FluentBitReadFromHead} \
+--from-literal=read.tail=${FluentBitReadFromTail} \
+--from-literal=logs.region=${RegionName} -n amazon-cloudwatch
+
+## If you want the Fluent Bit configuration that is more similar to Fluentd, run this command.
+kubectl apply -f https://raw.githubusercontent.com/aws-samples/amazon-cloudwatch-container-insights/latest/k8s-deployment-manifest-templates/deployment-mode/daemonset/container-insights-monitoring/fluent-bit/fluent-bit-compatible.yaml
